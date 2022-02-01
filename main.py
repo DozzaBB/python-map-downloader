@@ -6,6 +6,7 @@ import aiohttp
 from PIL import Image
 import io
 import tkinter
+from tkinter import ttk
 import logging
 import sys
 import os
@@ -28,14 +29,16 @@ def ask_multiple_choice_question(prompt, options):
 
 class Map_downloader:
     """Downloads a set of tiles and stitches."""
-    def __init__(self,lat_d_1,lon_d_1, lat_d_2,lon_d_2, ZOOM_LEVEL = 10, MAP_TYPE = "GOOGLE"):
+    def __init__(self,lat_d_1,lon_d_1, lat_d_2,lon_d_2, ZOOM_LEVEL = 10, MAP_TYPE = "GOOGLE", self_radius=10, centered_mode = False):
         # Initialise self variables.
         root = tkinter.Tk()
+        root.resizable(width=False, height=False)
         self.root = root
         self.lat_d_1 = tkinter.DoubleVar(value=lat_d_1)
         self.lat_d_2 = tkinter.DoubleVar(value=lat_d_2)
         self.lon_d_1 = tkinter.DoubleVar(value=lon_d_1)
         self.lon_d_2 = tkinter.DoubleVar(value=lon_d_2)
+        self.centre_radius = tkinter.IntVar(value=self_radius)
         self.MAP_TYPE = tkinter.StringVar(value=MAP_TYPE)
         self.ZOOM_LEVEL = tkinter.IntVar(value=ZOOM_LEVEL)
         self.logger = logging.getLogger("Map Downloader")
@@ -50,47 +53,84 @@ class Map_downloader:
         # Generate  TKInter window with the following:
         root.title("Map API Downloader v0.1")
         root['padx'] = 20
-        root['pady'] = 20
-        # lat1
-        tkinter.Label(root, justify="left", text="Top Left Latitude").grid(sticky=tkinter.W, row=0, column=0)
-        tkinter.Entry(root, textvariable=self.lat_d_1).grid(row=0, column=1)
-        # lon1
-        tkinter.Label(root, justify="left", text="Top Left Longitude").grid(sticky=tkinter.W,row=1, column=0)
-        tkinter.Entry(root, textvariable=self.lon_d_1).grid(row=1, column=1)
-        # lat2
-        tkinter.Label(root, justify="left", text="Bottom Right Latitude").grid(sticky=tkinter.W,row=2, column=0)
-        tkinter.Entry(root, textvariable=self.lat_d_2).grid(row=2, column=1)
-        # lon2
-        tkinter.Label(root, justify="left", text="Bottom Right Longitude").grid(sticky=tkinter.W,row=3, column=0)
-        tkinter.Entry(root, textvariable=self.lon_d_2).grid(row=3, column=1)
 
+        # First tab is for absolute mode.
+        self.notebook = ttk.Notebook(root)
+        self.notebook.grid(row=0, columnspan=3)
+        tab1 = ttk.Frame(self.notebook)
+        tab2 = ttk.Frame(self.notebook)
+        tab1.pack(fill='both', expand=True)
+        tab2.pack(fill='both', expand=True)
+
+        self.notebook.add(tab1, text="Absolute")
+        self.notebook.add(tab2, text="Centered")
+
+        if centered_mode:
+            # select the centred tab.
+            self.notebook.select(self.notebook.tabs()[1])
+
+        # First Tab
+        # lat1
+        tkinter.Label(tab1, justify="left", text="Top Left Latitude").grid(sticky=tkinter.W, row=0, column=0)
+        tkinter.Entry(tab1, textvariable=self.lat_d_1).grid(row=0, column=1)
+        # lon1
+        tkinter.Label(tab1, justify="left", text="Top Left Longitude").grid(sticky=tkinter.W,row=1, column=0)
+        tkinter.Entry(tab1, textvariable=self.lon_d_1).grid(row=1, column=1)
+        # lat2
+        tkinter.Label(tab1, justify="left", text="Bottom Right Latitude").grid(sticky=tkinter.W,row=2, column=0)
+        tkinter.Entry(tab1, textvariable=self.lat_d_2).grid(row=2, column=1)
+        # lon2
+        tkinter.Label(tab1, justify="left", text="Bottom Right Longitude").grid(sticky=tkinter.W,row=3, column=0)
+        tkinter.Entry(tab1, textvariable=self.lon_d_2).grid(row=3, column=1)
+
+        # Second Tab
+        # lat 1
+        tkinter.Label(tab2, justify="left", text="Centre Latitude").grid(sticky=tkinter.W, row=0, column=0)
+        tkinter.Entry(tab2, textvariable=self.lat_d_1).grid(row=0, column=1)
+        # lon1
+        tkinter.Label(tab2, justify="left", text="Centre Longitude").grid(sticky=tkinter.W,row=1, column=0)
+        tkinter.Entry(tab2, textvariable=self.lon_d_1).grid(row=1, column=1)
+        # Radius in tiles.
+        tkinter.Label(tab2, justify="left", text="Radius").grid(sticky=tkinter.W, row=2, column=0)
+        tkinter.Entry(tab2, textvariable=self.centre_radius).grid(row=2, column=1)
+
+
+        row = 1
         #zoom level
-        tkinter.Label(root, justify="left", text="Zoom Level").grid(sticky=tkinter.W,row=4, column=0)
-        tkinter.Scale(root, variable=self.ZOOM_LEVEL, orient="horizontal", to=19, from_=10, command=self.calculate_total_tiles).grid(row=4, column=1)
+        tkinter.Label(root, justify="left", text="Zoom Level").grid(row=row, column=0)
+        tkinter.Scale(root, variable=self.ZOOM_LEVEL, orient="horizontal", to=19, from_=10, command=self.calculate_total_tiles).grid(row=row, column=1)
+        row+= 1
         
         self.total_tiles = tkinter.IntVar()
-        tkinter.Label(root, justify="left", text="Total Tiles").grid(sticky=tkinter.W,row=5, column=0)
-        tkinter.Label(root, textvariable=self.total_tiles).grid(row=5, column=1)
+        tkinter.Label(root, justify="left", text="Total Tiles").grid(row=row, column=0)
+        tkinter.Label(root, textvariable=self.total_tiles).grid(row=row, column=1)
+        row+= 1
 
         # MAP_TYPE
-        tkinter.Label(root, justify="left", text="Map Type:").grid(sticky=tkinter.W, row=6)
-        tkinter.Radiobutton(root, text="Mapbox", value="MAPBOX", variable=self.MAP_TYPE, command=self.calculate_base_url).grid(sticky=tkinter.W, row=7)
-        tkinter.Radiobutton(root, text="Google", value="GOOGLE", variable=self.MAP_TYPE, command=self.calculate_base_url).grid(sticky=tkinter.W, row=8)
+        tkinter.Label(root, justify="left", text="Map Type:").grid(sticky=tkinter.W, row=row)
+        row+= 1
         # BASE_URL display debug,
         self.BASE_URL = tkinter.StringVar()
-        tkinter.Label(text="BASE_URL").grid(row=7, column=1)
-        tkinter.Label(textvariable=self.BASE_URL).grid(row=8, column=1)
+        # THese are to the side.
+        tkinter.Radiobutton(root, text="Mapbox", value="MAPBOX", variable=self.MAP_TYPE, command=self.calculate_base_url).grid(sticky=tkinter.W, row=row)
+        tkinter.Label(text="BASE_URL", width=50).grid(row=row, column=1)
+        row+= 1
+        tkinter.Radiobutton(root, text="Google", value="GOOGLE", variable=self.MAP_TYPE, command=self.calculate_base_url).grid(sticky=tkinter.W, row=row)
+        tkinter.Label(textvariable=self.BASE_URL).grid(row=row, column=1)
         self.calculate_base_url()
+        row+= 1
         # DOWNLOAD button.
         self.downloadbutton = tkinter.Button(root, text="Download", command=self.download_tiles)
-        self.downloadbutton.grid(row=9, column=0)
+        row+= 1
+        self.downloadbutton.grid(row=row, column=0)
         # Quit button
         self.status = tkinter.StringVar(value="Ready")
+        row+= 1
 
-        # init lol
+        #
         self.calculate_base_url()
-        tkinter.Button(root, text="Quit", command=self.exit).grid(row=10, column=0)
-        tkinter.Label(root, textvariable=self.status).grid(row=10, column=1)
+        tkinter.Button(root, text="Quit", command=self.exit).grid(row=row, column=0)
+        tkinter.Label(root, textvariable=self.status).grid(row=row, column=1)
         tkinter.Pack()
         root.mainloop()
 
@@ -118,13 +158,18 @@ class Map_downloader:
 
     def calculate_total_tiles(self, value):
         n = 2 ** self.ZOOM_LEVEL.get()
-        self.x1 = math.floor(n * ((self.lon_d_1.get() + 180) / 360))
-        self.y1 = math.floor(n * (1- (math.log(math.tan(math.radians(self.lat_d_1.get())) + 1 / math.cos(math.radians(self.lat_d_1.get()))) / math.pi)) / 2)
-        self.x2 = math.ceil(n * ((self.lon_d_2.get() + 180) / 360))
-        self.y2 = math.ceil(n * (1- (math.log(math.tan(math.radians(self.lat_d_2.get())) + 1 / math.cos(math.radians(self.lat_d_2.get()))) / math.pi)) / 2)
-        self.diff_x = self.x2 - self.x1
-        self.diff_y = self.y2 - self.y1
-        self.total_tiles.set(self.diff_x * self.diff_y)
+        # figure out the mode we are in.
+        mode = self.notebook.tab(self.notebook.select(), 'text')
+        if mode == 'Absolute':
+            self.x1 = math.floor(n * ((self.lon_d_1.get() + 180) / 360))
+            self.y1 = math.floor(n * (1- (math.log(math.tan(math.radians(self.lat_d_1.get())) + 1 / math.cos(math.radians(self.lat_d_1.get()))) / math.pi)) / 2)
+            self.x2 = math.ceil(n * ((self.lon_d_2.get() + 180) / 360))
+            self.y2 = math.ceil(n * (1- (math.log(math.tan(math.radians(self.lat_d_2.get())) + 1 / math.cos(math.radians(self.lat_d_2.get()))) / math.pi)) / 2)
+            self.diff_x = self.x2 - self.x1
+            self.diff_y = self.y2 - self.y1
+            self.total_tiles.set(self.diff_x * self.diff_y)
+        else: # must be centered mode.
+            self.total_tiles.set(self.centre_radius.get() * self.centre_radius.get() * 4)
         self.root.update()
 
         # self.root.withdraw()
@@ -144,10 +189,19 @@ class Map_downloader:
             # do something.
             self.logger.info("Downloading Tiles..")
             self.logger.debug(f"zoom level is {self.ZOOM_LEVEL.get()}, n = {n}")
-            self.x1 = math.floor(n * ((self.lon_d_1.get() + 180) / 360))
-            self.y1 = math.floor(n * (1- (math.log(math.tan(math.radians(self.lat_d_1.get())) + 1 / math.cos(math.radians(self.lat_d_1.get()))) / math.pi)) / 2)
-            self.x2 = math.ceil(n * ((self.lon_d_2.get() + 180) / 360))
-            self.y2 = math.ceil(n * (1- (math.log(math.tan(math.radians(self.lat_d_2.get())) + 1 / math.cos(math.radians(self.lat_d_2.get()))) / math.pi)) / 2)
+            mode = self.notebook.tab(self.notebook.select(), 'text')
+            if mode == 'Absolute':
+                self.x1 = math.floor(n * ((self.lon_d_1.get() + 180) / 360))
+                self.y1 = math.floor(n * (1- (math.log(math.tan(math.radians(self.lat_d_1.get())) + 1 / math.cos(math.radians(self.lat_d_1.get()))) / math.pi)) / 2)
+                self.x2 = math.ceil(n * ((self.lon_d_2.get() + 180) / 360))
+                self.y2 = math.ceil(n * (1- (math.log(math.tan(math.radians(self.lat_d_2.get())) + 1 / math.cos(math.radians(self.lat_d_2.get()))) / math.pi)) / 2)
+            else: #centered mode.
+                mid_x = math.floor(n * ((self.lon_d_1.get() + 180) / 360))
+                mid_y = math.floor(n * (1- (math.log(math.tan(math.radians(self.lat_d_1.get())) + 1 / math.cos(math.radians(self.lat_d_1.get()))) / math.pi)) / 2)
+                self.x1 = mid_x - self.centre_radius.get()
+                self.x2 = mid_x + self.centre_radius.get()
+                self.y1 = mid_y - self.centre_radius.get()
+                self.y2 = mid_y + self.centre_radius.get()
             self.diff_x = self.x2 - self.x1
             self.diff_y = self.y2 - self.y1
             self.total_tiles.set(self.diff_x * self.diff_x)
@@ -203,6 +257,7 @@ class Map_downloader:
             self.downloadbutton['state'] = 'normal'
             os.system(filename)
         except Exception as e:
+            self.logger.exception(e)
             self.set_status(f"Exception: {e}")
             self.downloadbutton['state'] = 'normal'
 
